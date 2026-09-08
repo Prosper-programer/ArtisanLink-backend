@@ -71,12 +71,38 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+
+      verificationStatus: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+
+      verificationReason: {
+        type: String,
+        trim: true,
+      },
+
+      rating: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5,
+      },
+
+      reviewCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
     },
   },
   {
     timestamps: true,
   }
 );
+
+userSchema.index({ "providerProfile.profession": 1 });
 
 const User = mongoose.model("User", userSchema);
 

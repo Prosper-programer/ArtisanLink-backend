@@ -5,15 +5,15 @@ const {
   getProviderProfile,
   updateProviderProfile,
 } = require("../controllers/provider.controller");
+const { getProviderReviews } = require("../controllers/review.controller");
 
 const protect = require("../middleware/auth.middleware");
 
 const router = express.Router();
 
 router.post("/become", protect, becomeProvider);
-
 router.get("/me", protect, getProviderProfile);
-
 router.put("/me", protect, updateProviderProfile);
+router.get("/:id/reviews", getProviderReviews);
 
 module.exports = router;
