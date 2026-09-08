@@ -34,4 +34,4 @@ Thumbs.db
 .idea/
 
 # test folder
-test/
+tests/
