@@ -62,6 +62,16 @@ const userSchema = new mongoose.Schema(
         min: 0,
       },
 
+      location: {
+        type: String,
+        trim: true,
+      },
+
+      coverImage: {
+        type: String,
+        trim: true,
+      },
+
       isProvider: {
         type: Boolean,
         default: false,

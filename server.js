@@ -40,9 +40,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/professions", professionRoutes);
 app.use("/api/location", locationRoutes);
 
-// Connect to MongoDB
-connectDB();
-
 // Test root route
 app.get("/", (req, res) => {
   res.json({
@@ -67,8 +64,14 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+};
+
+startServer();

@@ -160,6 +160,7 @@ const updateProviderProfile = async (req, res) => {
       specializations,
       description,
       experienceYears,
+      location,
     } = req.body;
 
     const user = await User.findById(req.user.userId);
@@ -207,6 +208,14 @@ const updateProviderProfile = async (req, res) => {
 
     if (description !== undefined) {
       user.providerProfile.description = String(description).trim();
+    }
+
+    if (location !== undefined) {
+      user.providerProfile.location = String(location).trim();
+    }
+
+    if (req.body.coverImage !== undefined) {
+      user.providerProfile.coverImage = String(req.body.coverImage).trim();
     }
 
     if (experienceYears !== undefined) {
