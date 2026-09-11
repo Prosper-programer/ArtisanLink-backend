@@ -245,8 +245,103 @@ const updateProviderProfile = async (req, res) => {
   }
 };
 
+/**
+ * Get list of service providers (artisans).
+ * GET /api/providers
+ * Query params: profession, search, limit, page
+ */
+const getAllProviders = async (req, res) => {
+  try {
+    const { profession, search, limit = 50, page = 1 } = req.query;
+
+    const query = {
+      "providerProfile.isProvider": true,
+    };
+
+    if (profession && profession !== "all") {
+      const canonical = getCanonicalProfession(profession);
+      if (canonical) {
+        query["providerProfile.profession"] = canonical;
+      } else {
+        query["providerProfile.profession"] = new RegExp(profession, "i");
+      }
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      query.$or = [
+        { fullName: searchRegex },
+        { "providerProfile.profession": searchRegex },
+        { "providerProfile.specializations": searchRegex },
+        { "providerProfile.description": searchRegex },
+        { "providerProfile.location": searchRegex },
+      ];
+    }
+
+    const pageSize = Math.min(Math.max(1, parseInt(limit, 10) || 50), 100);
+    const skip = (Math.max(1, parseInt(page, 10) || 1) - 1) * pageSize;
+
+    const [providers, total] = await Promise.all([
+      User.find(query)
+        .select("-password")
+        .sort({ "providerProfile.rating": -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      User.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: providers,
+      pagination: {
+        total,
+        page: parseInt(page, 10) || 1,
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error("Get all providers error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching providers",
+    });
+  }
+};
+
+/**
+ * Get single service provider by ID.
+ * GET /api/providers/:id
+ */
+const getProviderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id).select("-password").lean();
+
+    if (!user || !user.providerProfile || !user.providerProfile.isProvider) {
+      return res.status(404).json({
+        success: false,
+        message: "Provider not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error("Get provider by ID error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching provider details",
+    });
+  }
+};
+
 module.exports = {
   becomeProvider,
   getProviderProfile,
   updateProviderProfile,
+  getAllProviders,
+  getProviderById,
 };
