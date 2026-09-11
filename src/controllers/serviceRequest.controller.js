@@ -55,34 +55,53 @@ const parseLocation = async (location) => {
 const createRequest = async (req, res) => {
   try {
     const {
-      service: serviceId,
+      service: serviceInput,
+      serviceName,
+      serviceCategory,
       description,
       location,
       preferredDate,
       preferredTime,
       photos,
+      selectedProvider: selectedProviderInput,
+      providerId,
+      estimatedCost,
+      isFlexible,
     } = req.body;
 
-    if (!serviceId || !description || !location) {
+    if (!description || !location) {
       return res.status(400).json({
         success: false,
-        message: "service, description, and location are required",
+        message: "description and location are required",
       });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(serviceId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid service ID format",
+    // Resolve or auto-create Service in MongoDB
+    let service = null;
+    const targetServiceRef = serviceInput || serviceCategory || serviceName || "General";
+
+    if (mongoose.Types.ObjectId.isValid(targetServiceRef)) {
+      service = await Service.findById(targetServiceRef);
+    }
+
+    if (!service) {
+      // Try finding by name, category, or profession (case-insensitive)
+      const nameRegex = new RegExp(`^${targetServiceRef.trim()}$`, "i");
+      service = await Service.findOne({
+        $or: [{ name: nameRegex }, { category: nameRegex }, { profession: nameRegex }],
       });
     }
 
-    // Verify service exists and is active
-    const service = await Service.findById(serviceId);
-    if (!service || !service.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: "Service not found or is currently inactive",
+    if (!service) {
+      // Auto-create service record for this category/name
+      const normalizedName = serviceName || targetServiceRef;
+      const normalizedCategory = serviceCategory || targetServiceRef;
+      service = await Service.create({
+        name: normalizedName,
+        profession: normalizedCategory,
+        category: normalizedCategory,
+        description: `${normalizedName} service and diagnostics`,
+        isActive: true,
       });
     }
 
@@ -90,24 +109,54 @@ const createRequest = async (req, res) => {
     if (!parsedLocation || !parsedLocation.address) {
       return res.status(400).json({
         success: false,
-        message: "Valid location coordinates [longitude, latitude] and address are required",
+        message: "Valid location address is required",
       });
+    }
+
+    // Resolve selected provider if specified
+    let assignedProviderId = null;
+    let initialStatus = "pending";
+    const targetProviderId = selectedProviderInput || providerId;
+
+    if (targetProviderId && mongoose.Types.ObjectId.isValid(targetProviderId)) {
+      const providerUser = await User.findById(targetProviderId);
+      if (providerUser && providerUser.providerProfile?.isProvider) {
+        assignedProviderId = providerUser._id;
+        initialStatus = "provider_selected";
+      }
     }
 
     const serviceRequest = await ServiceRequest.create({
       customer: req.user.userId,
       service: service._id,
+      serviceName: serviceName || `${service.name} Diagnostic & Repair`,
+      serviceCategory: serviceCategory || service.category || service.name,
       description: description.trim(),
       location: parsedLocation,
       preferredDate: preferredDate ? new Date(preferredDate) : undefined,
       preferredTime: preferredTime ? preferredTime.trim() : undefined,
       photos: Array.isArray(photos) ? photos : [],
-      status: "pending",
+      selectedProvider: assignedProviderId,
+      estimatedCost: Number(estimatedCost) || 0,
+      isFlexible: Boolean(isFlexible),
+      status: initialStatus,
     });
+
+    if (assignedProviderId) {
+      const customerUser = await User.findById(req.user.userId).select("fullName");
+      await sendNotification({
+        recipient: assignedProviderId,
+        type: "SERVICE_REQUEST",
+        title: "New Service Request",
+        message: `${customerUser?.fullName || "A customer"} has chosen you for a ${service.name} request.`,
+        relatedId: serviceRequest._id,
+      }).catch((e) => console.warn("Notification error:", e));
+    }
 
     const populatedRequest = await ServiceRequest.findById(serviceRequest._id)
       .populate("service", "name profession category image")
-      .populate("customer", "fullName phoneNumber email");
+      .populate("customer", "fullName phoneNumber email")
+      .populate("selectedProvider", "fullName phoneNumber email avatar providerProfile");
 
     return res.status(201).json({
       success: true,
@@ -132,7 +181,7 @@ const getCustomerRequests = async (req, res) => {
   try {
     const requests = await ServiceRequest.find({ customer: req.user.userId })
       .populate("service", "name profession category image")
-      .populate("selectedProvider", "fullName phoneNumber email providerProfile")
+      .populate("selectedProvider", "fullName phoneNumber email avatar providerProfile")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({

@@ -51,6 +51,22 @@ const serviceRequestSchema = new mongoose.Schema(
       ref: "User",
       index: true,
     },
+    serviceName: {
+      type: String,
+      trim: true,
+    },
+    serviceCategory: {
+      type: String,
+      trim: true,
+    },
+    estimatedCost: {
+      type: Number,
+      default: 0,
+    },
+    isFlexible: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: [
