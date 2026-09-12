@@ -65,12 +65,20 @@ app.use((err, req, res, next) => {
 });
 
 // Connect to MongoDB and start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  const server = app.listen(PORT, () => {
+    console.log(`ArtisanLink server running on port ${PORT}`);
+  });
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`[ERROR] Port ${PORT} is already in use!`);
+    } else {
+      console.error("[ERROR] Server error:", err);
+    }
   });
 };
 

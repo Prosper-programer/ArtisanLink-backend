@@ -6,16 +6,48 @@ const registerUser = async (req, res) => {
   try {
     const { fullName, phoneNumber, email, password, confirmPassword } = req.body;
 
-    // 1. Check required fields
-    if (!fullName || !phoneNumber || !email || !password || !confirmPassword) {
+    const trimmedFullName = (fullName || "").trim();
+    const trimmedPhoneNumber = (phoneNumber || "").trim();
+    const trimmedEmail = (email || "").trim().toLowerCase();
+
+    // 1. Check required fields with specific feedback
+    if (!trimmedFullName) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "Full name is required",
       });
     }
 
-    // 2. Check password confirmation
-    if (password !== confirmPassword) {
+    if (!trimmedPhoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required",
+      });
+    }
+
+    if (!trimmedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Email address is required",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    // 2. Check password confirmation if supplied
+    if (confirmPassword && password !== confirmPassword) {
       return res.status(400).json({
         success: false,
         message: "Passwords do not match",
@@ -23,7 +55,7 @@ const registerUser = async (req, res) => {
     }
 
     // 3. Check if email already exists
-    const existingEmail = await User.findOne({ email });
+    const existingEmail = await User.findOne({ email: trimmedEmail });
 
     if (existingEmail) {
       return res.status(409).json({
@@ -33,7 +65,7 @@ const registerUser = async (req, res) => {
     }
 
     // 4. Check if phone number already exists
-    const existingPhone = await User.findOne({ phoneNumber });
+    const existingPhone = await User.findOne({ phoneNumber: trimmedPhoneNumber });
 
     if (existingPhone) {
       return res.status(409).json({
@@ -47,9 +79,9 @@ const registerUser = async (req, res) => {
 
     // 6. Create user
     const user = await User.create({
-      fullName,
-      phoneNumber,
-      email,
+      fullName: trimmedFullName,
+      phoneNumber: trimmedPhoneNumber,
+      email: trimmedEmail,
       password: hashedPassword,
       role: "customer",
       isPhoneVerified: false,
