@@ -523,16 +523,10 @@ const getProviderRequests = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
 
-    if (
-      !user ||
-      !user.providerProfile ||
-      !user.providerProfile.isProvider ||
-      !user.providerProfile.isVerified ||
-      user.providerProfile.verificationStatus !== "approved"
-    ) {
+    if (!user || !user.providerProfile || !user.providerProfile.isProvider) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. Only approved and verified service providers can view assigned requests.",
+        message: "Access denied. Only registered service providers can view assigned requests.",
       });
     }
 

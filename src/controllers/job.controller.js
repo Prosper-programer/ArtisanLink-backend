@@ -21,18 +21,12 @@ const acceptRequest = async (req, res) => {
       });
     }
 
-    // 1. Verify authenticated user is an approved and verified provider
+    // 1. Verify authenticated user is a registered provider
     const provider = await User.findById(req.user.userId);
-    if (
-      !provider ||
-      !provider.providerProfile ||
-      !provider.providerProfile.isProvider ||
-      !provider.providerProfile.isVerified ||
-      provider.providerProfile.verificationStatus !== "approved"
-    ) {
+    if (!provider || !provider.providerProfile || !provider.providerProfile.isProvider) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. Only approved and verified providers can accept service requests.",
+        message: "Access denied. Only service providers can accept service requests.",
       });
     }
 
