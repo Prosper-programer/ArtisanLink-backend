@@ -44,7 +44,10 @@ const createReview = async (req, res) => {
     }
 
     // Verify job
-    const job = await Job.findById(jobId);
+    let job = await Job.findById(jobId);
+    if (!job) {
+      job = await Job.findOne({ serviceRequest: jobId });
+    }
 
     if (!job) {
       return res.status(404).json({

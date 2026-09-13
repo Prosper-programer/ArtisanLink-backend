@@ -267,7 +267,10 @@ const startJob = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(id);
+    let job = await Job.findById(id);
+    if (!job) {
+      job = await Job.findOne({ serviceRequest: id });
+    }
 
     if (!job) {
       return res.status(404).json({
@@ -347,7 +350,10 @@ const completeJob = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(id);
+    let job = await Job.findById(id);
+    if (!job) {
+      job = await Job.findOne({ serviceRequest: id });
+    }
 
     if (!job) {
       return res.status(404).json({
