@@ -14,11 +14,29 @@ const reviewSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    reviewer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    reviewerRole: {
+      type: String,
+      enum: ["customer", "provider"],
+      default: "customer",
+    },
+    targetUser: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    behaviorRating: {
+      type: String,
+      trim: true,
+      default: "Professional & Respectful",
+    },
     job: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Job",
       required: true,
-      unique: true,
       index: true,
     },
     rating: {
@@ -40,7 +58,10 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// Allow one review from customer and one review from provider per job
+reviewSchema.index({ job: 1, reviewerRole: 1 }, { unique: true });
 reviewSchema.index({ provider: 1, createdAt: -1 });
+reviewSchema.index({ targetUser: 1, createdAt: -1 });
 
 const Review = mongoose.model("Review", reviewSchema);
 

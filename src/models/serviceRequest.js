@@ -51,6 +51,12 @@ const serviceRequestSchema = new mongoose.Schema(
       ref: "User",
       index: true,
     },
+    rejectedProviders: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     serviceName: {
       type: String,
       trim: true,

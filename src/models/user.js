@@ -40,6 +40,12 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    avatar: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     // Provider information
     providerProfile: {
       profession: {

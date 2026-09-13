@@ -11,7 +11,7 @@ const { sendNotification } = require("../utils/notification.helper");
  */
 const createReview = async (req, res) => {
   try {
-    const { jobId, rating, comment } = req.body;
+    const { jobId, rating, comment, behaviorRating } = req.body;
 
     // Validate inputs
     if (!jobId || rating === undefined || !comment) {
@@ -53,11 +53,13 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Verify customer owns the job
-    if (job.customer.toString() !== req.user.userId) {
+    const isCustomer = job.customer.toString() === req.user.userId;
+    const isProvider = job.provider.toString() === req.user.userId;
+
+    if (!isCustomer && !isProvider) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. You can only review your own jobs.",
+        message: "Access denied. You can only review jobs you were involved in.",
       });
     }
 
@@ -69,55 +71,78 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Check for duplicate review
-    const existingReview = await Review.findOne({ job: jobId });
+    const reviewerRole = isCustomer ? "customer" : "provider";
+    const targetUserId = isCustomer ? job.provider : job.customer;
+
+    // Check for duplicate review from this role
+    const existingReview = await Review.findOne({
+      job: jobId,
+      reviewerRole,
+    });
+
     if (existingReview) {
       return res.status(409).json({
         success: false,
-        message: "You have already reviewed this job",
+        message: `You have already reviewed this job as the ${reviewerRole}`,
       });
     }
 
     // Create review
     const review = await Review.create({
-      customer: req.user.userId,
+      customer: job.customer,
       provider: job.provider,
+      reviewer: req.user.userId,
+      reviewerRole,
+      targetUser: targetUserId,
+      behaviorRating: behaviorRating || (isCustomer ? "Professional & Punctual" : "Polite & Cooperative"),
       job: job._id,
       rating: Math.round(numRating),
       comment: comment.trim(),
     });
 
-    // Recalculate provider's average rating and review count
-    const stats = await Review.aggregate([
-      { $match: { provider: job.provider } },
-      {
-        $group: {
-          _id: "$provider",
-          avgRating: { $avg: "$rating" },
-          count: { $sum: 1 },
+    const reviewerUser = await User.findById(req.user.userId).select("fullName");
+
+    if (isCustomer) {
+      // Recalculate provider's average rating and review count
+      const stats = await Review.aggregate([
+        { $match: { provider: job.provider, reviewerRole: "customer" } },
+        {
+          $group: {
+            _id: "$provider",
+            avgRating: { $avg: "$rating" },
+            count: { $sum: 1 },
+          },
         },
-      },
-    ]);
+      ]);
 
-    if (stats.length > 0) {
-      const avgRating = Math.round(stats[0].avgRating * 10) / 10;
-      const count = stats[0].count;
+      if (stats.length > 0) {
+        const avgRating = Math.round(stats[0].avgRating * 10) / 10;
+        const count = stats[0].count;
 
-      await User.findByIdAndUpdate(job.provider, {
-        "providerProfile.rating": avgRating,
-        "providerProfile.reviewCount": count,
+        await User.findByIdAndUpdate(job.provider, {
+          "providerProfile.rating": avgRating,
+          "providerProfile.reviewCount": count,
+        });
+      }
+
+      // Send notification to provider
+      await sendNotification({
+        recipient: job.provider,
+        type: "REVIEW_RECEIVED",
+        title: "New Review Received",
+        message: `${reviewerUser?.fullName || "A customer"} left you a ${Math.round(numRating)}-star review: "${comment.trim().substring(0, 80)}"`,
+        relatedId: review._id,
+      });
+    } else {
+      // Provider reviewed customer
+      await sendNotification({
+        recipient: job.customer,
+        type: "REVIEW_RECEIVED",
+        title: "Artisan Feedback Received",
+        message: `${reviewerUser?.fullName || "Your artisan"} left you customer feedback: ${Math.round(numRating)} stars (${review.behaviorRating}).`,
+        relatedId: review._id,
       });
     }
-
-    // Send notification to provider
-    const customer = await User.findById(req.user.userId).select("fullName");
-    await sendNotification({
-      recipient: job.provider,
-      type: "NEW_REVIEW",
-      title: "New Review Received",
-      message: `${customer?.fullName || "A customer"} left you a ${Math.round(numRating)}-star review: "${comment.trim().slice(0, 60)}"`,
-      relatedId: review._id,
-    });
 
     const populatedReview = await Review.findById(review._id)
       .populate("customer", "fullName email")

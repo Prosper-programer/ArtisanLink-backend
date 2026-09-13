@@ -154,23 +154,76 @@ const rejectRequest = async (req, res) => {
       });
     }
 
+    // Track rejecting provider
+    if (!request.rejectedProviders) {
+      request.rejectedProviders = [];
+    }
+    if (!request.rejectedProviders.includes(req.user.userId)) {
+      request.rejectedProviders.push(req.user.userId);
+    }
+
+    const currentProvider = await User.findById(req.user.userId).select("fullName");
+
+    // Search for next available provider with the same profession
+    const professionQuery = request.serviceCategory || (request.service && request.service.name) || "";
+    const nextProvider = await User.findOne({
+      "providerProfile.isProvider": true,
+      _id: { $nin: request.rejectedProviders },
+      $or: [
+        { "providerProfile.profession": new RegExp(professionQuery, "i") },
+        { "providerProfile.specializations": new RegExp(professionQuery, "i") },
+      ],
+    }).select("fullName phoneNumber email providerProfile");
+
+    if (nextProvider) {
+      // Reassign to next provider
+      request.selectedProvider = nextProvider._id;
+      request.status = "pending";
+      await request.save();
+
+      // Notify next provider
+      await sendNotification({
+        recipient: nextProvider._id,
+        type: "REQUEST_RECEIVED",
+        title: "New Service Request Assigned",
+        message: `You have received a reassigned service request for ${request.serviceName || request.service?.name || "service"}.`,
+        relatedId: request._id,
+      });
+
+      // Notify customer
+      await sendNotification({
+        recipient: request.customer,
+        type: "REQUEST_REASSIGNED",
+        title: "Request Reassigned",
+        message: `${currentProvider?.fullName || "Your selected artisan"} was unavailable. Your request has been automatically reassigned to ${nextProvider.fullName}.`,
+        relatedId: request._id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Request declined by provider. Automatically reassigned to ${nextProvider.fullName}.`,
+        reassigned: true,
+        data: request,
+      });
+    }
+
+    // No alternative provider available
     request.status = "rejected";
     await request.save();
-
-    const provider = await User.findById(req.user.userId).select("fullName");
 
     // Notify customer of rejection
     await sendNotification({
       recipient: request.customer,
       type: "REQUEST_REJECTED",
       title: "Service Request Declined",
-      message: `${provider?.fullName || "The artisan"} was unable to accept your service request. You may select another provider.`,
+      message: `${currentProvider?.fullName || "The artisan"} was unable to accept your service request. No alternate artisan is currently available.`,
       relatedId: request._id,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Service request rejected",
+      message: "Service request rejected. No alternate providers available.",
+      reassigned: false,
       data: request,
     });
   } catch (error) {

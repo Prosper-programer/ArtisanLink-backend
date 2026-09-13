@@ -128,7 +128,54 @@ const geocodeAddress = async (text) => {
   return results.length > 0 ? results[0] : null;
 };
 
+/**
+ * Reverse geocode latitude and longitude into a formatted address using Geoapify API.
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude
+ */
+const reverseGeocode = async (lat, lon) => {
+  if (lat === undefined || lon === undefined) return null;
+
+  const apiKey = process.env.GEOAPIFY_API_KEY;
+  if (!apiKey || apiKey === "YOUR_GEOAPIFY_API_KEY") {
+    return {
+      formatted: "Bastos, Yaoundé, Centre, Cameroon",
+      address: "Bastos",
+      city: "Yaoundé",
+      country: "Cameroon",
+      coordinates: [Number(lon), Number(lat)],
+    };
+  }
+
+  try {
+    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&apiKey=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Geoapify reverse geocoding error: HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    if (!data.features || data.features.length === 0) {
+      return null;
+    }
+
+    const props = data.features[0].properties || {};
+    return {
+      formatted: props.formatted || `${props.address_line1 || ""}, ${props.city || ""}`,
+      address: props.address_line1 || props.street || props.suburb || props.city || "Current Location",
+      city: props.city || props.county || "Yaoundé",
+      country: props.country || "Cameroon",
+      coordinates: [Number(lon), Number(lat)],
+    };
+  } catch (error) {
+    console.error("Geoapify reverse geocode error:", error.message);
+    return null;
+  }
+};
+
 module.exports = {
   autocompleteAddress,
   geocodeAddress,
+  reverseGeocode,
 };

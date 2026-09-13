@@ -1,4 +1,4 @@
-const { autocompleteAddress, geocodeAddress } = require("../services/geoapify.service");
+const { autocompleteAddress, geocodeAddress, reverseGeocode } = require("../services/geoapify.service");
 
 /**
  * Autocomplete address queries using Geoapify API.
@@ -73,7 +73,45 @@ const geocodeLocation = async (req, res) => {
   }
 };
 
+/**
+ * Reverse geocode latitude and longitude coordinates.
+ * GET /api/location/reverse?lat=3.866&lon=11.518
+ */
+const reverseGeocodeLocation = async (req, res) => {
+  try {
+    const { lat, lon } = req.query;
+
+    if (lat === undefined || lon === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "Query parameters 'lat' and 'lon' are required",
+      });
+    }
+
+    const result = await reverseGeocode(Number(lat), Number(lon));
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Location not found for the given coordinates",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Location reverse geocode error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while reverse geocoding coordinates",
+    });
+  }
+};
+
 module.exports = {
   getAddressSuggestions,
   geocodeLocation,
+  reverseGeocodeLocation,
 };

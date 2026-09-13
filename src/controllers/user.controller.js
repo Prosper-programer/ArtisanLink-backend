@@ -38,6 +38,7 @@ const updateProfile = async (req, res) => {
     }
     if (avatar !== undefined) {
       updateData.avatar = avatar;
+      updateData["providerProfile.coverImage"] = avatar;
     }
 
     const user = await User.findByIdAndUpdate(
