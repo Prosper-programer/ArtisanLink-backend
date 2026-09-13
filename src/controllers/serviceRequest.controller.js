@@ -530,9 +530,30 @@ const getProviderRequests = async (req, res) => {
       });
     }
 
-    const requests = await ServiceRequest.find({
-      selectedProvider: req.user.userId,
-    })
+    const providerProfession = user.providerProfile?.profession;
+
+    // Build query: Directly assigned requests OR unassigned pending requests in this provider's trade
+    const queryConditions = [
+      { selectedProvider: req.user.userId },
+    ];
+
+    if (providerProfession) {
+      queryConditions.push({
+        $and: [
+          { customer: { $ne: req.user.userId } },
+          { $or: [{ selectedProvider: null }, { selectedProvider: { $exists: false } }] },
+          { status: { $in: ["pending", "open"] } },
+          {
+            $or: [
+              { serviceCategory: new RegExp(`^${providerProfession}$`, "i") },
+              { serviceName: new RegExp(providerProfession, "i") },
+            ],
+          },
+        ],
+      });
+    }
+
+    const requests = await ServiceRequest.find({ $or: queryConditions })
       .populate("customer", "fullName phoneNumber email")
       .populate("service", "name profession category image")
       .sort({ createdAt: -1 });

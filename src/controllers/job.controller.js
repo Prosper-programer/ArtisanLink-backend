@@ -40,16 +40,32 @@ const acceptRequest = async (req, res) => {
       });
     }
 
-    // 3. Verify that the request is assigned to this provider
-    if (
-      !request.selectedProvider ||
-      request.selectedProvider.toString() !== req.user.userId
-    ) {
+    // 3. Verify that the user is not accepting their own request
+    if (request.customer && request.customer.toString() === req.user.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot accept your own service request as a provider.",
+      });
+    }
+
+    // 4. Verify that the request is assigned to this provider or is open/unassigned
+    const isDirectlyAssigned =
+      request.selectedProvider &&
+      request.selectedProvider.toString() === req.user.userId;
+
+    const isOpenUnassigned =
+      !request.selectedProvider &&
+      ["pending", "open"].includes(request.status);
+
+    if (!isDirectlyAssigned && !isOpenUnassigned) {
       return res.status(403).json({
         success: false,
         message: "Access denied. You are not the assigned provider for this request.",
       });
     }
+
+    // Assign to provider if previously unassigned
+    request.selectedProvider = provider._id;
 
     // 4. Verify request status allows acceptance
     if (request.status === "accepted" || request.status === "in_progress") {
